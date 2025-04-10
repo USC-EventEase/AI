@@ -1,2 +1,3 @@
-llama*
 env
+/.git
+/.*

@@ -1,0 +1,10 @@
+version: '1'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "6043:6043"
+    environment:
+      MONGO_URI: "mongodb+srv://rs3167196:DevelopEventEase012@development.6spf5.mongodb.net/?retryWrites=true&w=majority&appName=Development"
