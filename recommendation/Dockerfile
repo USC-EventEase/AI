@@ -23,7 +23,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY . .
 
 # Expose the port your Flask app will run on (6043 in your code)
-EXPOSE 6043
+EXPOSE 3002
 
 # Set the default command to run your app.
 CMD ["python", "app.py"]

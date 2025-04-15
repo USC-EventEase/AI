@@ -203,4 +203,4 @@ def get_recommendations():
 
 if __name__ == '__main__':
     # Bind to 0.0.0.0 to allow external access (required for Docker)
-    app.run(host='0.0.0.0', port=6043, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=3002, debug=False, threaded=True)

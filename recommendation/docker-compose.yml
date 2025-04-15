@@ -5,6 +5,14 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "6043:6043"
+      - "3002:3002"
+    container_name: recommendation
     environment:
       MONGO_URI: "mongodb+srv://rs3167196:DevelopEventEase012@development.6spf5.mongodb.net/?retryWrites=true&w=majority&appName=Development"
+    networks:
+      - my_shared_net  # Attach to the external network
+
+
+networks:
+  my_shared_net:
+    external: true
