@@ -9,6 +9,7 @@ services:
     container_name: recommendation
     environment:
       MONGO_URI: "mongodb+srv://rs3167196:DevelopEventEase012@development.6spf5.mongodb.net/?retryWrites=true&w=majority&appName=Development"
+      MONGO_URI_TEST: "mongodb+srv://rajeevdh:Rajeevdh%40012@eventeasedb.agck8.mongodb.net/?retryWrites=true&w=majority&appName=EventEaseDB"
     networks:
       - my_shared_net  # Attach to the external network
 

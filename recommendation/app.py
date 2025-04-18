@@ -8,6 +8,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 import numpy as np
 import os
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error
+from sklearn.preprocessing import LabelEncoder
+import joblib
 
 # Disable the progress bar for model download
 os.environ["HUGGINGFACE_HUB_DISABLE_PROGRESS_BAR"] = "1"
@@ -27,6 +33,11 @@ client = MongoClient(MONGO_URI)
 print("✅ DB connection established")
 db = client['recommendations']
 
+MONGO_URI_TEST = os.environ.get("MONGO_URI_TEST")
+trainer = MongoClient(MONGO_URI_TEST)
+print("✅ DB connection established")
+coll_trest = trainer["test"]['past_events']
+
 ##########################################
 # Helper Functions
 ##########################################
@@ -38,6 +49,101 @@ def compute_embedding(event_data):
         convert_to_numpy=True
     ).tolist()
 
+
+def prediction_model():
+    # Get only past events with attendance data
+    data = list(coll_trest.find({"date": {"$lt": datetime.now().strftime("%Y-%m-%d")},"attendance": {"$exists": True}}))
+
+    # Convert to DataFrame
+    df = pd.DataFrame(data)
+
+    # Feature engineering
+    df['day_of_week'] = pd.to_datetime(df['date']).dt.dayofweek
+    df['month'] = pd.to_datetime(df['date']).dt.month
+    df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+
+    # Encode categorical variables
+    label_encoders = {}
+    for col in ['type','location', 'weather']:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        label_encoders[col] = le    
+
+    # Features and target
+    features = ['type', 'capacity', 'ticket_price','location', 'weather', 'day_of_week', 'month', 'is_weekend']
+    X = df[features]
+    y = df['attendance']
+
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Train model
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+
+    # Evaluate
+    y_pred = model.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    #print(f"Model MAE: {mae:.2f}")
+
+    return model, label_encoders
+
+def predict_crowd(event_details):
+    """
+    Predict crowd for a new event
+    
+    Parameters:
+    event_details (dict): Dictionary containing event details with keys:
+        - type: concert, conference, tourist_spot, etc.
+        - date: YYYY-MM-DD
+        - capacity: integer
+        - ticket_price: float
+        - location: string 
+    """
+    
+    # Load model and encoders
+    model,label_encoders = prediction_model()
+    
+    # Create DataFrame
+    df = pd.DataFrame([event_details])
+    
+    # Feature engineering
+    df['date'] = pd.to_datetime(df['date'])
+    df['day_of_week'] = df['date'].dt.dayofweek
+    df['month'] = df['date'].dt.month
+    df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+
+    #weather
+    if df['month'][0] in [12,1]: #dec, jan
+        df['weather'] = 'snowy'
+    elif df['month'][0] == 2: #feb
+        df['weather'] = 'rainy'
+    elif df['month'][0] in [3,4,11]: #march apr nov
+        df['weather'] = 'cloudy'
+    else:
+        df['weather'] = 'sunny'
+
+    #location
+    list_location = ["Los Angeles", "New York", "Seattle","San Francisco","Chicago"]
+   
+    for l in list_location:
+        if l in df['location'][0]:
+            df['location'] = l
+            
+    
+    # Encode categorical variables
+    for col in ['type', 'location', 'weather']:
+        le = label_encoders[col]
+        df[col] = le.transform(df[col])
+    
+    # Features
+    features = ['type', 'capacity', 'ticket_price', 'location', 'weather', 'day_of_week', 'month', 'is_weekend']
+    X = df[features]
+    
+    # Predict
+    prediction = model.predict(X)
+    
+    return int(prediction[0])
 ##########################################
 # Background Job Functions
 ##########################################
@@ -196,6 +302,23 @@ def get_recommendations():
         return jsonify({"error": "No recommendations found for this event"}), 404
 
     return jsonify(recommendation_doc['list_of_recommendations']), 200
+
+
+@app.route('/api/get_crowd_predictions', methods=['GET'])
+def get_crowd():
+    try:
+        data = request.json
+        new_event = data.get('eventDetails')
+        predicted_attendance = predict_crowd(new_event)
+        return jsonify({
+                    "message": "Prediction Successfull",
+                    "eventId": predicted_attendance
+                }), 200 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 ##########################################
 # Run the Flask App
