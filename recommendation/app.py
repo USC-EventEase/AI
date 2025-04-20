@@ -304,7 +304,7 @@ def get_recommendations():
     return jsonify(recommendation_doc['list_of_recommendations']), 200
 
 
-@app.route('/api/get_crowd_predictions', methods=['GET'])
+@app.route('/api/get_crowd_predictions', methods=['POST'])
 def get_crowd():
     try:
         data = request.json
